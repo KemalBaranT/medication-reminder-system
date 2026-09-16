@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  doctor
+  head_nurse
+  nurse
+  secretary
+}
+
+enum PatientStatus {
+  admitted
+  discharged
+  transferred
+}
+
+enum PrescriptionStatus {
+  active
+  completed
+  cancelled
+}
+
+enum ScheduleStatus {
+  pending
+  notified
+  administered
+  missed
+  skipped
+}
+
+enum AdministrationAction {
+  administered
+  not_administered
+}
+
+enum NonAdministrationReason {
+  patient_asleep
+  refused
+  discharged
+  unavailable
+  other
+}
+
+model User {
+  id           String   @id @default(uuid())
+  fullName     String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  devices              Device[]
+  prescriptionsWritten Prescription[]           @relation("PrescribedBy")
+  assignedSchedules    AdministrationSchedule[] @relation("AssignedNurse")
+  administrationLogs   AdministrationLog[]      @relation("PerformedBy")
+  auditLogs            AuditLog[]
+
+  @@map("users")
+}
+
+model Device {
+  id        String   @id @default(uuid())
+  userId    String
+  fcmToken  String
+  platform  String
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fcmToken])
+  @@map("devices")
+}
+
+model Patient {
+  id                String        @id @default(uuid())
+  hospitalPatientNo String        @unique
+  fullName          String
+  roomNo            String?
+  bedNo             String?
+  birthDate         DateTime?
+  wristbandCode     String        @unique
+  status            PatientStatus @default(admitted)
+  createdAt         DateTime      @default(now())
+
+  prescriptions Prescription[]
+
+  @@map("patients")
+}
+
+model Medication {
+  id      String  @id @default(uuid())
+  name    String
+  barcode String? @unique
+  form    String?
+  unit    String?
+
+  prescriptions Prescription[]
+
+  @@map("medications")
+}
+
+model Prescription {
+  id             String              @id @default(uuid())
+  patientId      String
+  medicationId   String
+  prescribedById String
+  dosage         String
+  route          String?
+  frequencyHours Int
+  startAt        DateTime
+  endAt          DateTime?
+  status         PrescriptionStatus  @default(active)
+  notes          String?
+  createdAt      DateTime            @default(now())
+
+  patient      Patient                  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medication   Medication               @relation(fields: [medicationId], references: [id])
+  prescribedBy User                     @relation("PrescribedBy", fields: [prescribedById], references: [id])
+  schedules    AdministrationSchedule[]
+
+  @@map("prescriptions")
+}
+
+model AdministrationSchedule {
+  id               String         @id @default(uuid())
+  prescriptionId   String
+  assignedNurseId  String?
+  scheduledTime    DateTime
+  status           ScheduleStatus @default(pending)
+  notifiedAt       DateTime?
+  createdAt        DateTime       @default(now())
+
+  prescription Prescription        @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  assignedNurse User?              @relation("AssignedNurse", fields: [assignedNurseId], references: [id])
+  log           AdministrationLog?
+
+  @@index([scheduledTime, status])
+  @@map("administration_schedule")
+}
+
+model AdministrationLog {
+  id              String                    @id @default(uuid())
+  scheduleId      String                    @unique
+  nurseId         String
+  action          AdministrationAction
+  reason          NonAdministrationReason?
+  barcodeVerified Boolean                   @default(false)
+  notes           String?
+  performedAt     DateTime                  @default(now())
+
+  schedule AdministrationSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  nurse    User                   @relation("PerformedBy", fields: [nurseId], references: [id])
+
+  @@map("administration_logs")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  entity    String
+  entityId  String
+  action    String
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_log")
+}
