@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+/**
+ * Yonetim raporlama panosunu besleyen toplulastirma sorgulari. Ayri bir
+ * analitik depo olmadan dogrudan operasyonel tablolardan okur; bu, bu
+ * olcekte kabul edilebilirdir ve raporlarin canli veriyle tutarli
+ * kalmasini saglar.
+ */
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}

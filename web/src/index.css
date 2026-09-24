@@ -1,12 +1,335 @@
 @import "tailwindcss";
 
+/*
+ * "Medical Point" kurumsal marka paleti: koyu, tok bir sağlık kırmızısı
+ * (600 kademesi) birincil renk, beyaz/açık gri ise zemin. Ölçek, eski mavi
+ * paletle aynı 9 basamaklı yapıyı korur; böylece `bg-brand-*`/`text-brand-*`
+ * kullanan her bileşen (Layout, LoginPage, StatsCards, butonlar...) tek bir
+ * yerden, kod değişikliği gerekmeden yeniden markalanır.
+ */
+@theme {
+  --color-brand-50: #fdf2f3;
+  --color-brand-100: #fbe3e5;
+  --color-brand-200: #f7c9cd;
+  --color-brand-300: #f0a1a8;
+  --color-brand-400: #e56b76;
+  --color-brand-500: #d43d4d;
+  --color-brand-600: #c8102e;
+  --color-brand-700: #a30d26;
+  --color-brand-800: #7d0a1e;
+  --color-brand-900: #4d0613;
+
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-card-hover: 0 8px 20px -4px rgb(15 23 42 / 0.10), 0 4px 8px -4px rgb(15 23 42 / 0.06);
+}
+
 :root {
   color-scheme: light;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  background: #f5f6f8;
-  color: #111827;
+  font-family: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  background: #f4f6fa;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Shared component classes applied across the whole panel so every page
+ * (Patients, Reports, Personnel...) reads as one consistent design system
+ * rather than each page inventing its own button/card/input styling.
+ */
+.card {
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: var(--shadow-card);
+  border: 1px solid #eef1f6;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.card-interactive {
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+}
+.card-interactive:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+  border-color: var(--color-brand-200);
+}
+
+.input-field {
+  width: 100%;
+  border-radius: 0.65rem;
+  border: 1px solid #dde3ee;
+  background: #fff;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.input-field::placeholder {
+  color: #94a3b8;
+}
+
+.input-field:hover:not(:focus):not(:disabled) {
+  border-color: #c7d0e0;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px rgb(212 61 77 / 0.15);
+}
+
+.input-field:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #475569;
+  margin-bottom: 0.3rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.65rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.55rem 1.1rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease,
+    transform 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 2px;
+}
+
+.btn:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-brand-600);
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(200 16 46 / 0.25);
+}
+.btn-primary:not(:disabled):hover {
+  background: var(--color-brand-700);
+  box-shadow: 0 10px 20px -6px rgb(200 16 46 / 0.4);
+}
+
+/*
+ * Klinik olarak "olumlu, tamamlayıcı" eylemler (İlacı Ver) için yeşil
+ * düğme. Marka kırmızısı panelde birincil/yıkıcı eylemlerle eşleştiği için,
+ * bir dozu uygulamak gibi güvenli-tamamlayıcı bir adım ayrı bir renkle
+ * ayırt edilir.
+ */
+.btn-success {
+  background: #059669;
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(5 150 105 / 0.25);
+}
+.btn-success:not(:disabled):hover {
+  background: #047857;
+  box-shadow: 0 10px 20px -6px rgb(5 150 105 / 0.45);
+}
+
+.btn-secondary {
+  background: #fff;
+  color: #334155;
+  border: 1px solid #dde3ee;
+}
+.btn-secondary:not(:disabled):hover {
+  background: #fdf2f3;
+  border-color: var(--color-brand-200);
+  color: var(--color-brand-700);
+  box-shadow: 0 6px 16px -6px rgb(15 23 42 / 0.12);
+}
+
+.btn-danger {
+  background: #fff;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+.btn-danger:not(:disabled):hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  box-shadow: 0 6px 16px -6px rgb(220 38 38 / 0.25);
+}
+
+.btn-danger-solid {
+  background: #dc2626;
+  color: #fff;
+}
+.btn-danger-solid:not(:disabled):hover {
+  background: #b91c1c;
+  box-shadow: 0 10px 20px -6px rgb(220 38 38 / 0.4);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-brand-700);
+  padding: 0.35rem 0.6rem;
+}
+.btn-ghost:not(:disabled):hover {
+  background: var(--color-brand-50);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/*
+ * Soft, tinted-background action buttons for table rows and card headers
+ * (e.g. "Assign Medication", "Edit", "Discharge", "Delete"). Replaces bare
+ * colored text links, which read as inert text rather than an actionable
+ * control, with a real button affordance while staying compact enough for
+ * a dense table row.
+ */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.15s ease;
+}
+.action-btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-btn-primary {
+  background: var(--color-brand-50);
+  color: var(--color-brand-700);
+}
+.action-btn-primary:not(:disabled):hover {
+  background: var(--color-brand-100);
+  box-shadow: 0 4px 10px -4px rgb(200 16 46 / 0.3);
+}
+
+.action-btn-neutral {
+  background: #f1f5f9;
+  color: #334155;
+}
+.action-btn-neutral:not(:disabled):hover {
+  background: #e2e8f0;
+  box-shadow: 0 4px 10px -4px rgb(15 23 42 / 0.12);
+}
+
+.action-btn-warning {
+  background: #fffbeb;
+  color: #b45309;
+}
+.action-btn-warning:not(:disabled):hover {
+  background: #fef3c7;
+  box-shadow: 0 4px 10px -4px rgb(180 83 9 / 0.25);
+}
+
+.action-btn-danger {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.action-btn-danger:not(:disabled):hover {
+  background: #fee2e2;
+  box-shadow: 0 4px 10px -4px rgb(185 28 28 / 0.25);
+}
+
+.action-btn-success {
+  background: #ecfdf5;
+  color: #047857;
+}
+.action-btn-success:not(:disabled):hover {
+  background: #d1fae5;
+  box-shadow: 0 4px 10px -4px rgb(5 150 105 / 0.3);
+}
+
+/*
+ * Yeni "Verildi" olarak kaydedilen doz satırının kısa süreli yeşil
+ * vurgusu; sayfa yenilenmeden gerçekleşen durum değişikliğini hemşirenin
+ * gözünden kaçmayacak şekilde işaret eder.
+ */
+@keyframes dose-administered-flash {
+  0% { background-color: #a7f3d0; }
+  100% { background-color: transparent; }
+}
+.dose-row-flash {
+  animation: dose-administered-flash 2.4s ease-out;
+}
+
+/* Vertical clinical-course timeline on the patient detail page. */
+.timeline-item {
+  position: relative;
+  padding-left: 2rem;
+  padding-bottom: 1.5rem;
+}
+.timeline-item:last-child {
+  padding-bottom: 0;
+}
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 0.4375rem;
+  top: 1.5rem;
+  bottom: -0.5rem;
+  width: 2px;
+  background: #e2e8f0;
+}
+.timeline-item:last-child::before {
+  display: none;
+}
+.timeline-dot {
+  position: absolute;
+  left: 0;
+  top: 0.2rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px #e2e8f0;
+}
+
+/* Isolates a wristband/medication QR label so "Print" outputs only the code, not the surrounding app chrome. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .qr-print-area,
+  .qr-print-area * {
+    visibility: visible;
+  }
+  .qr-print-area {
+    position: fixed;
+    top: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+  }
 }

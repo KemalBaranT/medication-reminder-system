@@ -16,3 +16,6 @@ mobile/*.iml
 # IDE
 .vscode/*.log
 .DS_Store
+
+# JetBrains IDE ayarları (kişisel, depoya girmez)
+.idea/

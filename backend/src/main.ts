@@ -3,6 +3,13 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
+/**
+ * Uygulama giris noktasi. API, her biri kendi origin'inde calisan birden
+ * fazla birinci taraf istemciden (web paneli ve Flutter uygulamasi)
+ * cagrildigindan CORS varsayilan olarak aciktir; global ValidationPipe,
+ * bilinmeyen alanlari herhangi bir controller'a ulasmadan once ayiklar ve
+ * hatali govdeleri reddeder, boylece her servis aldigi DTO'lara guvenebilir.
+ */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors();

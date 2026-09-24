@@ -1,17 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import '../models/medication_schedule.dart';
-import 'feedback_screen.dart';
+
+import '../models/dose_target.dart';
+import '../widgets/advanced_qr_scanner.dart';
 
 enum _ScanStep { patient, medication }
 
-/// Hemsire once hasta bilekligini, sonra ilac kutusunu okutur. Ikisi de
-/// beklenen kodlarla eslesmezse "Uygulandi" akisina gecilemez - yanlis hastaya
-/// yanlis ilac verilmesini engelleyen guvenlik adimi budur.
+/// İlaç uygulama akışının "QR ile Hızlı Onayla" yolu: yatak başı barkod
+/// doğrulaması. Hemşire önce hasta bilekliğini, sonra ilaç kutusunu
+/// okutur; ikisi de bu dozun beklenen kodlarıyla eşleşmeden doğrulama
+/// tamamlanmaz. Bu, "beş doğru" ilkesinin doğru hasta + doğru ilaç
+/// ayağıdır.
+///
+/// **Sorumluluk sınırı:** Bu ekran hiçbir kayıt yapmaz; yalnızca
+/// doğrulamanın sonucunu ([DoseVerification]) döndürür ve kapanır. Kaydın
+/// kendisi manuel yol ile aynı "İlaç Onayı" penceresinde ([DoseConfirmDialog]),
+/// aynı kurallarla yapılır (bkz. `scanAndAdministerDose`). Böylece iki
+/// yolun tek farkı denetim kaydındaki doğrulama bilgisidir. İki barkodun
+/// eşleşmesi ilacın *hazır* olduğunu kanıtlar, *verildiğini* değil; bu
+/// yüzden kayıt kendiliğinden yapılmaz, hemşirenin onayını bekler.
+///
+/// **Tek tarayıcı:** Tarama deneyimi, ana sayfadaki "QR Tara" butonuyla
+/// açılan bileklik sorgusunda da kullanılan global [AdvancedQrScanner]
+/// bileşenindedir (lazer vizör, galeriden okuma, hata bandı). Galeriden
+/// okunan kodlar kabul edilir ancak [DoseVerification.usedGallery] olarak
+/// işaretlenir ve kayıt "barkod doğrulamalı" sayılmaz.
+///
+/// İlaç kataloğunda barkodu tanımlı olmayan ilaçlarda ikinci adım
+/// atlanır; kayıt yalnızca hasta doğrulamasıyla ilerler ve onay penceresi bu
+/// durumu açıkça belirtir.
 class ScanMatchScreen extends StatefulWidget {
-  final MedicationSchedule schedule;
+  const ScanMatchScreen({super.key, required this.target});
 
-  const ScanMatchScreen({super.key, required this.schedule});
+  final DoseTarget target;
 
   @override
   State<ScanMatchScreen> createState() => _ScanMatchScreenState();
@@ -19,64 +39,61 @@ class ScanMatchScreen extends StatefulWidget {
 
 class _ScanMatchScreenState extends State<ScanMatchScreen> {
   _ScanStep _step = _ScanStep.patient;
-  String? _error;
-  bool _handled = false;
+  bool _usedGallery = false;
 
-  void _onDetect(BarcodeCapture capture) {
-    if (_handled) return;
-    final code = capture.barcodes.firstOrNull?.rawValue;
-    if (code == null) return;
-
+  /// Okutulan her kodu bulunulan adımın beklenen değeriyle karşılaştırır.
+  /// Eşleşmeyen bir kod adımı ilerletmez ve tarayıcının hata bandında
+  /// gösterilir. Son adım da eşleştiğinde tarayıcı başarı animasyonunu
+  /// gösterir ve ekran doğrulama sonucuyla kapanır.
+  Future<QrScanDecision> _onCode(String code, QrScanSource source) async {
+    final t = widget.target;
     if (_step == _ScanStep.patient) {
-      if (code != widget.schedule.patientWristbandCode) {
-        setState(() => _error = 'Yanlis hasta bilekligi! Bu ilac ${widget.schedule.patientName} icin.');
-        return;
+      if (code != t.patientWristbandCode) {
+        return QrScanDecision.reject(
+            'Yanlış hasta bilekliği! Bu ilaç ${t.patientName} için.');
       }
-      setState(() {
-        _step = _ScanStep.medication;
-        _error = null;
-      });
-      return;
+      _usedGallery |= source == QrScanSource.gallery;
+      if (!t.hasMedicationBarcode) {
+        return QrScanDecision.complete('Hasta doğrulandı: ${t.patientName}',
+            onShown: () => _finish(medicationScanned: false));
+      }
+      setState(() => _step = _ScanStep.medication);
+      return QrScanDecision.accept('Hasta doğrulandı: ${t.patientName}');
     }
 
-    if (code != widget.schedule.medicationBarcode) {
-      setState(() => _error = 'Yanlis ilac! Beklenen: ${widget.schedule.medicationName}');
-      return;
+    if (code != t.medicationBarcode) {
+      return QrScanDecision.reject(
+          'Yanlış ilaç! Beklenen: ${t.medicationName}');
     }
+    _usedGallery |= source == QrScanSource.gallery;
+    return QrScanDecision.complete('İlaç doğrulandı',
+        onShown: () => _finish(medicationScanned: true));
+  }
 
-    _handled = true;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => FeedbackScreen(schedule: widget.schedule, barcodeVerified: true),
-      ),
-    );
+  void _finish({required bool medicationScanned}) {
+    Navigator.of(context).pop(DoseVerification(
+      patientScanned: true,
+      medicationScanned: medicationScanned,
+      usedGallery: _usedGallery,
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
-    final label = _step == _ScanStep.patient ? 'Hasta bilekligini okutun' : 'Ilac kutusunu okutun';
+    final onPatientStep = _step == _ScanStep.patient;
+    final totalSteps = widget.target.hasMedicationBarcode ? 2 : 1;
     return Scaffold(
-      appBar: AppBar(title: Text(label)),
-      body: Stack(
-        children: [
-          MobileScanner(onDetect: _onDetect),
-          if (_error != null)
-            Positioned(
-              bottom: 24,
-              left: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(8)),
-                child: Text(_error!, style: const TextStyle(color: Colors.white)),
-              ),
-            ),
-        ],
+      appBar: AppBar(
+        title: Text(onPatientStep
+            ? 'Adım 1/$totalSteps · Hasta Bilekliği'
+            : 'Adım 2/2 · İlaç Barkodu'),
+      ),
+      body: AdvancedQrScanner(
+        instruction: onPatientStep
+            ? 'Hasta bilekliğini okutun'
+            : 'İlaç kutusunu okutun: ${widget.target.medicationName}',
+        onCode: _onCode,
       ),
     );
   }
-}
-
-extension _FirstOrNull<T> on List<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }

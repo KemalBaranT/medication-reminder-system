@@ -1,9 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { ESCALATE_JOB, GENERATION_HORIZON_HOURS, NOTIFY_JOB } from './schedule.constants';
+
+/** Klinik sonucu henuz karara baglanmamis durumlar; saati yalnizca bunlar icin degistirilebilir. */
+const RESCHEDULABLE_STATUSES = ['pending', 'notified'];
 
 @Injectable()
 export class ScheduleService {
@@ -62,6 +65,31 @@ export class ScheduleService {
       { scheduleId },
       { jobId: `notify-${scheduleId}`, delay, removeOnComplete: true, removeOnFail: true },
     );
+  }
+
+  /**
+   * Tek bir doz olayini, recetenin tekrarlanan sikligindan bagimsiz olarak
+   * yeni bir saate tasir. Yalnizca henuz kaydedilmis bir sonucu olmayan
+   * dozlar tasinabilir; daha once kuyruga alinmis BullMQ bildirim isi
+   * degistirilir, boylece hemsire orijinal saat yerine duzeltilmis saatte
+   * uyarilir.
+   */
+  async rescheduleDose(scheduleId: string, newTime: Date) {
+    const schedule = await this.prisma.administrationSchedule.findUnique({ where: { id: scheduleId } });
+    if (!schedule) throw new NotFoundException('Doz kaydı bulunamadı');
+    if (!RESCHEDULABLE_STATUSES.includes(schedule.status)) {
+      throw new BadRequestException('Sadece bekleyen dozların saati değiştirilebilir');
+    }
+
+    const updated = await this.prisma.administrationSchedule.update({
+      where: { id: scheduleId },
+      data: { scheduledTime: newTime, status: 'pending', notifiedAt: null },
+    });
+
+    await this.notificationQueue.remove(`notify-${scheduleId}`);
+    await this.enqueueNotifyJob(scheduleId, newTime);
+
+    return updated;
   }
 
   async enqueueEscalation(scheduleId: string, delayMinutes: number) {

@@ -2,6 +2,13 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
 
+/**
+ * Ilac zamani ve eskalasyon uyarilarini hemsire cihazlarina iletmek icin
+ * Firebase Admin SDK'sinin ince bir sarmalayicisi. Firebase kimlik
+ * bilgileri yoksa hata firlatmak yerine yalnizca loglayan bir moda geriler;
+ * boylece bir hastane, push bildirimleri yapilandirilmadan once sistemin
+ * geri kalanini calistirip tanitabilir.
+ */
 @Injectable()
 export class FcmService implements OnModuleInit {
   private readonly logger = new Logger(FcmService.name);

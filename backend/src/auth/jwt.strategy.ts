@@ -8,6 +8,14 @@ interface JwtPayload {
   email: string;
 }
 
+/**
+ * Korumali her istekte Bearer token'ini dogrular ve cozumlenen veriyi,
+ * asagi akista `@CurrentUser()` ile `RolesGuard`in kullandigi `AuthUser`
+ * nesnesine donusturur. JwtAuthGuard ile korunan her rotada calistigindan,
+ * performans icin kasitli olarak durumsuzdur (veritabani sorgusu yapmaz);
+ * bunun bedeli, devre disi birakilmis bir hesabin aninda iptal edilmek
+ * yerine token'i suresi dolana kadar gecerli kalmasidir.
+ */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {

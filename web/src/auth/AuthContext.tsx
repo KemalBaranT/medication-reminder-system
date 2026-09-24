@@ -4,8 +4,9 @@ import { api } from '../lib/api';
 interface AuthUser {
   id: string;
   fullName: string;
+  title?: string | null;
   email: string;
-  role: 'doctor' | 'head_nurse' | 'nurse' | 'secretary';
+  role: 'admin' | 'doctor' | 'head_nurse' | 'nurse' | 'secretary';
 }
 
 interface AuthContextValue {
@@ -16,6 +17,13 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+/**
+ * Tum uygulama icin oturum acmis kullanicinin oturumuna sahiptir. JWT ve
+ * kullanici profili yalnizca React durumuna degil localStorage'a da
+ * yansitilir; boylece bir sayfa yenilemesi yeniden girisi zorunlu kilmaz.
+ * `api.ts`'nin istek interceptor'i, token'i ayni depolama anahtarindan
+ * bagimsiz olarak okur.
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     const raw = localStorage.getItem('authUser');

@@ -24,6 +24,14 @@ dependencies:
 
   # Barkod/QR okuma
   mobile_scanner: ^5.2.3
+  # Galeriden QR fotografi secimi (bkz. WristbandScanScreen)
+  image_picker: ^1.1.2
+  # Galeri fotograflari icin goruntu iyilestirme (moire/parlama giderme) ve
+  # yerel motorun okuyamadigi goruntulerde yedek saf Dart QR cozucu
+  # (bkz. QrImageDecoder)
+  image: ^4.10.1
+  zxing2: ^0.2.4
+  path_provider: ^2.1.6
 
   # Offline yerel veritabani (senkron kuyrugu)
   sqflite: ^2.4.1
@@ -31,7 +39,7 @@ dependencies:
 
   # Baglanti durumu + arka plan senkron
   connectivity_plus: ^6.1.0
-  workmanager: ^0.5.2
+  workmanager: ^0.10.10
 
   # Guvenli token saklama
   flutter_secure_storage: ^9.2.2

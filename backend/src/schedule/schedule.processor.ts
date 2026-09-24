@@ -50,10 +50,15 @@ export class ScheduleProcessor extends WorkerHost {
       scheduledTime: schedule.scheduledTime.toISOString(),
     });
 
-    await this.prisma.administrationSchedule.update({
-      where: { id: scheduleId },
+    // Kosullu guncelleme: FCM gonderimi suren saniyeler icinde hemsire dozu
+    // erken uygulamis olabilir. Kosulsuz bir `update`, "administered"
+    // durumunu "notified"a geri cevirir ve verilmis bir dozu tekrar bekleyen
+    // olarak listeleyerek mukerrer uygulamaya yol acabilirdi.
+    const marked = await this.prisma.administrationSchedule.updateMany({
+      where: { id: scheduleId, status: 'pending' },
       data: { status: 'notified', notifiedAt: new Date() },
     });
+    if (marked.count === 0) return;
 
     const escalationMinutes = Number(this.config.get('ESCALATION_MINUTES') ?? 15);
     await this.scheduleService.enqueueEscalation(scheduleId, escalationMinutes);
@@ -67,10 +72,14 @@ export class ScheduleProcessor extends WorkerHost {
     // Bu sure icinde hemsire islem yaptiysa (administered/skipped) status zaten degismistir
     if (!schedule || schedule.status !== 'notified') return;
 
-    await this.prisma.administrationSchedule.update({
-      where: { id: scheduleId },
+    // Ayni yaris durumu: kontrol ile yazma arasinda hemsire dozu kaydetmis
+    // olabilir; kosullu guncelleme verilmis bir dozun "missed"e dusmesini
+    // ve bashemsireye yanlis alarm gitmesini engeller.
+    const escalated = await this.prisma.administrationSchedule.updateMany({
+      where: { id: scheduleId, status: 'notified' },
       data: { status: 'missed' },
     });
+    if (escalated.count === 0) return;
 
     const headNurseTokens = await this.tokensForRole('head_nurse');
     await this.fcmService.sendDataMessage(headNurseTokens, {

@@ -13,15 +13,16 @@ class NotificationService {
 
   static const _channel = AndroidNotificationChannel(
     'medication_due_channel',
-    'Ilac Zamani Bildirimleri',
-    description: 'Zamani gelen ilaclar icin kritik oncelikli bildirimler',
+    'İlaç Zamanı Bildirimleri',
+    description: 'Zamanı gelen ilaçlar için kritik öncelikli bildirimler',
     importance: Importance.max,
     playSound: true,
   );
 
   Future<void> initialize() async {
     await _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_channel);
 
     await _localNotifications.initialize(
@@ -38,18 +39,22 @@ class NotificationService {
     if (token != null) {
       await _api.registerDevice(token, 'android');
     }
-    messaging.onTokenRefresh.listen((newToken) => _api.registerDevice(newToken, 'android'));
+    messaging.onTokenRefresh
+        .listen((newToken) => _api.registerDevice(newToken, 'android'));
 
     FirebaseMessaging.onMessage.listen(_showLocalNotification);
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {
     final data = message.data;
-    if (data['type'] != 'medication_due' && data['type'] != 'medication_missed') return;
+    if (data['type'] != 'medication_due' &&
+        data['type'] != 'medication_missed') {
+      return;
+    }
 
     final title = data['type'] == 'medication_missed'
-        ? 'ILAC KACIRILDI: ${data['patientName']}'
-        : 'Ilac Zamani: ${data['patientName']} (Oda ${data['roomNo']})';
+        ? 'İLAÇ KAÇIRILDI: ${data['patientName']}'
+        : 'İlaç Zamanı: ${data['patientName']} (Oda ${data['roomNo']})';
     final body = '${data['medicationName']} - ${data['dosage'] ?? ''}';
 
     await _localNotifications.show(

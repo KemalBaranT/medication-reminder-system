@@ -1,3 +1,9 @@
+// Ilac Takip Sistemi - domain veritabani semasi.
+// Klinik akis: Doktor bir Prescription yazar -> ScheduleService bunun icin
+// AdministrationSchedule kayitlari uretir -> hemsire dozu uygulayip/uygulamayarak
+// bir AdministrationLog olusturur. Asagidaki modeller bu akisi ve etrafindaki
+// personel/hasta/bildirim altyapisini temsil eder.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,25 +13,34 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Sistemdeki yetki seviyeleri. Bir kullanicinin GORUNEN unvani (User.title,
+/// orn. "Kardiyolog") burada degil, yalnizca yetkilendirme burada tanimlanir -
+/// ikisi kasitli olarak ayri tutulur.
 enum Role {
+  admin
   doctor
   head_nurse
   nurse
   secretary
 }
 
+/// Bir hastanin serviste bulunma durumu; discharged/transferred kayitlar
+/// silinmez, denetim gecmisi icin saklanir.
 enum PatientStatus {
   admitted
   discharged
   transferred
 }
 
+/// Bir recetenin yasam dongusu durumu.
 enum PrescriptionStatus {
   active
   completed
   cancelled
 }
 
+/// Tek bir planlanmis dozun durumu; ScheduleService tarafindan uretilir ve
+/// hemsirenin AdministrationLog girisiyle veya zaman asimiyla (missed) sonuclanir.
 enum ScheduleStatus {
   pending
   notified
@@ -34,11 +49,13 @@ enum ScheduleStatus {
   skipped
 }
 
+/// Bir hemsirenin bir doz icin verdigi nihai karar.
 enum AdministrationAction {
   administered
   not_administered
 }
 
+/// Bir dozun neden uygulanmadigina dair standartlastirilmis, raporlanabilir nedenler.
 enum NonAdministrationReason {
   patient_asleep
   refused
@@ -47,9 +64,16 @@ enum NonAdministrationReason {
   other
 }
 
+/// Hastane personeli hesabi (Personel Yonetimi modulunun temel kaydi).
+/// Kimlik dogrulama (email/passwordHash) ve yetkilendirme (role) burada
+/// birlikte tutulur; isActive=false bir hesabi kalici silmeden aninda
+/// devre disi birakir (bkz. UsersService.remove).
 model User {
   id           String   @id @default(uuid())
   fullName     String
+  /// Unvan/brans (orn. "Kardiyolog", "Genel Cerrah", "Bashekim"). Opsiyoneldir,
+  /// rol (Role enum) yetkilendirmeyi belirler; title sadece goruntuleme amaclidir.
+  title        String?
   email        String   @unique
   passwordHash String
   role         Role
@@ -61,10 +85,39 @@ model User {
   assignedSchedules    AdministrationSchedule[] @relation("AssignedNurse")
   administrationLogs   AdministrationLog[]      @relation("PerformedBy")
   auditLogs            AuditLog[]
+  refreshTokens        RefreshToken[]
 
   @@map("users")
 }
 
+/// Bir kullanicinin, access token'ini kullaniciyi login ekranina dusurmeden
+/// (sessizce) yenilemesini saglayan uzun omurlu kimlik dogrulama kaydidir.
+/// Token'in kendisi asla duz metin saklanmaz - yalnizca SHA-256 ozeti
+/// (tokenHash) tutulur, cunku bu tablo bir DB dump'inda ele gecirilse bile
+/// aktif oturumlarin calinamamasini saglar. Her /auth/refresh cagrisinda
+/// rotate edilir (kullanilan kayit revokedAt ile isaretlenir, yerine yenisi
+/// olusturulur); bu, calinmis bir refresh token'in sinirsiz sure boyunca
+/// tekrar tekrar kullanilabilir kalmasini engeller. Kapsam disi: bu surum
+/// rotasyon zincirini takip edip "zaten iptal edilmis bir token tekrar
+/// sunuldu" durumunu ayrica tum oturumlari iptal ederek cezalandirmiyor -
+/// yalnizca o tek istegi 401 ile reddediyor.
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+/// Bir kullanicinin push bildirimi alacak mobil cihazi (FCM token). Bir
+/// kullanicinin birden fazla cihazi olabilir; (userId, fcmToken) benzersizligi
+/// ayni cihazdan tekrar kayit isteklerini idempotent hale getirir.
 model Device {
   id        String   @id @default(uuid())
   userId    String
@@ -78,15 +131,24 @@ model Device {
   @@map("devices")
 }
 
+/// Hasta demografik kaydi. Lokasyon kasitli olarak uc ayri alana (floor/roomNo/
+/// bedNo) bolunmustur ki hasta nakil oldugunda tek alan guncellenebilsin ve
+/// hemsire ekraninda "Kat - Oda - Yatak" seklinde birlestirilebilsin.
+/// wristbandCode, bedbasi guvenlik dogrulamasinin (dogru hasta) temelidir.
 model Patient {
   id                String        @id @default(uuid())
   hospitalPatientNo String        @unique
   fullName          String
+  floor             String?
   roomNo            String?
   bedNo             String?
   birthDate         DateTime?
   wristbandCode     String        @unique
   status            PatientStatus @default(admitted)
+  /// Taburculuk zaman damgasi (endDate). Taburcu Et ile ayarlanir, Taburculugu
+  /// Iptal Et ile temizlenir; createdAt (kabul tarihi) ile birlikte hastanin
+  /// yatis suresini tanimlar ve Klinik Seyir zaman cizelgesinde kullanilir.
+  dischargedAt      DateTime?
   createdAt         DateTime      @default(now())
 
   prescriptions Prescription[]
@@ -94,6 +156,9 @@ model Patient {
   @@map("patients")
 }
 
+/// Paylasilan ilac katalogu. Prescription'dan ayri tutulur ki ayni ilac farkli
+/// hastalara farkli doz/sikliklarla atanabilsin; barcode, hemsirenin bedbasi
+/// "dogru ilac" dogrulamasinda kullanilir.
 model Medication {
   id      String  @id @default(uuid())
   name    String
@@ -106,8 +171,11 @@ model Medication {
   @@map("medications")
 }
 
+/// Doktorun bir hasta icin yazdigi klinik emir: hangi ilac, hangi dozda, ne
+/// siklikta. AdministrationSchedule kayitlarinin kaynagidir - bir Prescription
+/// olusturuldugunda ScheduleService yaklasan doz zamanlarini otomatik uretir.
 model Prescription {
-  id             String              @id @default(uuid())
+  id             String             @id @default(uuid())
   patientId      String
   medicationId   String
   prescribedById String
@@ -116,9 +184,12 @@ model Prescription {
   frequencyHours Int
   startAt        DateTime
   endAt          DateTime?
-  status         PrescriptionStatus  @default(active)
+  status         PrescriptionStatus @default(active)
   notes          String?
-  createdAt      DateTime            @default(now())
+  /// Doktorun hemsireye yonelik uygulama talimati (orn. "Tok karnina verilsin").
+  /// Bu ilacin her dozunda hemsire ekranında dikkat cekici sekilde gosterilir.
+  nurseNote      String?
+  createdAt      DateTime           @default(now())
 
   patient      Patient                  @relation(fields: [patientId], references: [id], onDelete: Cascade)
   medication   Medication               @relation(fields: [medicationId], references: [id])
@@ -128,16 +199,20 @@ model Prescription {
   @@map("prescriptions")
 }
 
+/// Bir recetenin tek bir planlanmis dozu. ScheduleService.generateForPrescription
+/// tarafindan ureyen "somut olay" kaydidir; assignedNurseId bos ise doz henuz
+/// kimseye atanmamistir ve tum hemsirelerin ortak calisma listesinde (broadcast)
+/// gorunur.
 model AdministrationSchedule {
-  id               String         @id @default(uuid())
-  prescriptionId   String
-  assignedNurseId  String?
-  scheduledTime    DateTime
-  status           ScheduleStatus @default(pending)
-  notifiedAt       DateTime?
-  createdAt        DateTime       @default(now())
+  id              String         @id @default(uuid())
+  prescriptionId  String
+  assignedNurseId String?
+  scheduledTime   DateTime
+  status          ScheduleStatus @default(pending)
+  notifiedAt      DateTime?
+  createdAt       DateTime       @default(now())
 
-  prescription Prescription        @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  prescription  Prescription       @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
   assignedNurse User?              @relation("AssignedNurse", fields: [assignedNurseId], references: [id])
   log           AdministrationLog?
 
@@ -145,15 +220,19 @@ model AdministrationSchedule {
   @@map("administration_schedule")
 }
 
+/// Bir hemsirenin bir doz icin verdigi nihai klinik karar. Schedule ile
+/// bire-bir (@unique scheduleId) iliskilidir; bu yuzden bir doz icin en fazla
+/// bir kayit girilebilir ve zaten kayitli bir doza ikinci kez giris yapilamaz
+/// (bkz. AdministrationLogsService.create).
 model AdministrationLog {
-  id              String                    @id @default(uuid())
-  scheduleId      String                    @unique
+  id              String                   @id @default(uuid())
+  scheduleId      String                   @unique
   nurseId         String
   action          AdministrationAction
   reason          NonAdministrationReason?
-  barcodeVerified Boolean                   @default(false)
+  barcodeVerified Boolean                  @default(false)
   notes           String?
-  performedAt     DateTime                  @default(now())
+  performedAt     DateTime                 @default(now())
 
   schedule AdministrationSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   nurse    User                   @relation("PerformedBy", fields: [nurseId], references: [id])
@@ -161,6 +240,21 @@ model AdministrationLog {
   @@map("administration_logs")
 }
 
+/// Musteri hastanenin markasini tasiyan tek satirlik global ayar kaydi (SaaS
+/// beyaz etiketleme). Web ve mobil istemciler acilista GET /settings ile
+/// okur; admin/head_nurse/secretary rolleri PATCH /settings ile guncelleyebilir
+/// (yeniden deploy gerekmez).
+model HospitalSettings {
+  id           String   @id @default("singleton")
+  hospitalName String   @default("İlaç Takip Sistemi")
+  updatedAt    DateTime @updatedAt
+
+  @@map("hospital_settings")
+}
+
+/// Genel amacli denetim izi tablosu (kim, ne zaman, hangi kaydi degistirdi).
+/// Sema seviyesinde tanimlidir ancak henuz hicbir serviste yazilmiyor; ileride
+/// eklenecek uyumluluk/denetim raporlamasi icin ayrilmistir.
 model AuditLog {
   id        String   @id @default(uuid())
   userId    String?

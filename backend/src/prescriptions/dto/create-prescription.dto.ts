@@ -28,4 +28,8 @@ export class CreatePrescriptionDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  nurseNote?: string;
 }

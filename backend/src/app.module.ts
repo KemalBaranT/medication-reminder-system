@@ -13,6 +13,8 @@ import { AdministrationLogsModule } from './administration-logs/administration-l
 import { DevicesModule } from './devices/devices.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
+import { SettingsModule } from './settings/settings.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { ReportsModule } from './reports/reports.module';
     DevicesModule,
     NotificationsModule,
     ReportsModule,
+    SettingsModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}
