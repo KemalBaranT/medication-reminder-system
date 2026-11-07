@@ -3,7 +3,13 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
-import { ESCALATE_JOB, GENERATION_HORIZON_HOURS, NOTIFY_JOB } from './schedule.constants';
+import {
+  ESCALATE_JOB,
+  GENERATION_HORIZON_HOURS,
+  NOTIFY_JOB,
+  PREPARE_JOB,
+  PREPARE_LEAD_MINUTES,
+} from './schedule.constants';
 
 /** Klinik sonucu henuz karara baglanmamis durumlar; saati yalnizca bunlar icin degistirilebilir. */
 const RESCHEDULABLE_STATUSES = ['pending', 'notified'];
@@ -58,7 +64,30 @@ export class ScheduleService {
     await this.enqueueNotifyJob(schedule.id, scheduledTime);
   }
 
+  /**
+   * Bir dozun kademeli bildirim zaman çizelgesinin ilk iki işini kuyruğa
+   * alır: planlanan saatten `PREPARE_LEAD_MINUTES` önce "Hazırlık" ve tam
+   * saatinde "Uygulama Zamanı". Üçüncü kademe ("Gecikme"), dozun gerçekten
+   * açık kaldığı doğrulandıktan sonra `NOTIFY_JOB` işlenirken kuyruğa alınır
+   * (bkz. ScheduleProcessor.handleNotify); böylece zaten verilmiş bir doz
+   * için gereksiz bir eskalasyon işi hiç oluşmaz.
+   *
+   * İş kimlikleri doz kimliğinden türetilir (`prepare-<id>`, `notify-<id>`);
+   * BullMQ aynı kimlikli ikinci bir işi reddettiği için, gece üreticisinin
+   * aynı dozu tekrar görmesi mükerrer bildirime yol açmaz. Hazırlık anı
+   * geçmişte kalmışsa (doz 15 dakikadan kısa süre kala oluşturulduysa) bu
+   * kademe atlanır.
+   */
   private async enqueueNotifyJob(scheduleId: string, scheduledTime: Date) {
+    const prepareDelay = scheduledTime.getTime() - PREPARE_LEAD_MINUTES * 60 * 1000 - Date.now();
+    if (prepareDelay > 0) {
+      await this.notificationQueue.add(
+        PREPARE_JOB,
+        { scheduleId },
+        { jobId: `prepare-${scheduleId}`, delay: prepareDelay, removeOnComplete: true, removeOnFail: true },
+      );
+    }
+
     const delay = Math.max(0, scheduledTime.getTime() - Date.now());
     await this.notificationQueue.add(
       NOTIFY_JOB,
@@ -70,9 +99,10 @@ export class ScheduleService {
   /**
    * Tek bir doz olayini, recetenin tekrarlanan sikligindan bagimsiz olarak
    * yeni bir saate tasir. Yalnizca henuz kaydedilmis bir sonucu olmayan
-   * dozlar tasinabilir; daha once kuyruga alinmis BullMQ bildirim isi
-   * degistirilir, boylece hemsire orijinal saat yerine duzeltilmis saatte
-   * uyarilir.
+   * dozlar tasinabilir. Daha önce kuyruğa alınmış üç kademenin işleri
+   * (hazırlık, uygulama zamanı, gecikme) birlikte kaldırılıp yeni saate göre
+   * yeniden kurulur; böylece hemşire orijinal saat yerine düzeltilmiş saatte
+   * uyarılır ve eski saate ait bir gecikme uyarısı yanlışlıkla tetiklenmez.
    */
   async rescheduleDose(scheduleId: string, newTime: Date) {
     const schedule = await this.prisma.administrationSchedule.findUnique({ where: { id: scheduleId } });
@@ -86,7 +116,11 @@ export class ScheduleService {
       data: { scheduledTime: newTime, status: 'pending', notifiedAt: null },
     });
 
-    await this.notificationQueue.remove(`notify-${scheduleId}`);
+    await Promise.all([
+      this.notificationQueue.remove(`prepare-${scheduleId}`),
+      this.notificationQueue.remove(`notify-${scheduleId}`),
+      this.notificationQueue.remove(`escalate-${scheduleId}`),
+    ]);
     await this.enqueueNotifyJob(scheduleId, newTime);
 
     return updated;

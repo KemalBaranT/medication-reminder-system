@@ -3,11 +3,26 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
-import { FcmService } from '../notifications/fcm.service';
+import { DoseAlertDispatcher, type DoseAlertPayload } from '../notifications/dose-alert.dispatcher';
 import { DevicesService } from '../devices/devices.service';
 import { ScheduleService } from './schedule.service';
-import { ESCALATE_JOB, NOTIFY_JOB } from './schedule.constants';
+import { DEFAULT_OVERDUE_MINUTES, ESCALATE_JOB, NOTIFY_JOB, PREPARE_JOB } from './schedule.constants';
 
+type ScheduleWithContext = NonNullable<Awaited<ReturnType<ScheduleProcessor['loadSchedule']>>>;
+
+/**
+ * Kademeli bildirim zaman çizelgesinin (Hazırlık → Uygulama Zamanı →
+ * Gecikme) sunucu tarafı yürütücüsü.
+ *
+ * Her kademe, dozun o anki durumunu veritabanından yeniden okur ve yalnızca
+ * doz hâlâ açıksa işlem yapar: hemşire dozu kademeler arasında kaydettiyse
+ * sonraki kademeler sessizce düşer. Durum geçişleri koşullu `updateMany`
+ * ile yapılır; bildirim gönderimi sürerken hemşirenin kaydettiği bir doz
+ * geri "bekliyor" durumuna düşürülemez.
+ *
+ * Bildirimin hangi cihaza hangi biçimde gideceği (sessiz senkron sinyali
+ * veya görünür eskalasyon) `DoseAlertDispatcher`'da belgelenmiştir.
+ */
 @Injectable()
 @Processor('medication-notifications')
 export class ScheduleProcessor extends WorkerHost {
@@ -15,7 +30,7 @@ export class ScheduleProcessor extends WorkerHost {
 
   constructor(
     private prisma: PrismaService,
-    private fcmService: FcmService,
+    private dispatcher: DoseAlertDispatcher,
     private devicesService: DevicesService,
     private scheduleService: ScheduleService,
     private config: ConfigService,
@@ -24,33 +39,30 @@ export class ScheduleProcessor extends WorkerHost {
   }
 
   async process(job: Job<{ scheduleId: string }>): Promise<void> {
+    if (job.name === PREPARE_JOB) return this.handlePrepare(job.data.scheduleId);
     if (job.name === NOTIFY_JOB) return this.handleNotify(job.data.scheduleId);
     if (job.name === ESCALATE_JOB) return this.handleEscalate(job.data.scheduleId);
   }
 
+  /** Kademe 1 — "Hazırlık": planlanan saatten 15 dk önce hemşire cihazlarına senkron sinyali. */
+  private async handlePrepare(scheduleId: string) {
+    const schedule = await this.loadSchedule(scheduleId);
+    if (!schedule || schedule.status !== 'pending') return;
+    await this.dispatcher.sendSyncSignal(await this.nurseTokensFor(schedule), this.toPayload(schedule), 'prepare');
+  }
+
+  /**
+   * Kademe 2 — "Uygulama Zamanı": dozu `notified` yapar, hemşire
+   * cihazlarına senkron sinyali gönderir ve gecikme kademesini kuyruğa alır.
+   */
   private async handleNotify(scheduleId: string) {
-    const schedule = await this.prisma.administrationSchedule.findUnique({
-      where: { id: scheduleId },
-      include: { prescription: { include: { patient: true, medication: true } } },
-    });
+    const schedule = await this.loadSchedule(scheduleId);
     // Hasta taburcu olmus / recete iptal edilmis olabilir - artik pending degilse atla
     if (!schedule || schedule.status !== 'pending') return;
 
-    const tokens = schedule.assignedNurseId
-      ? await this.devicesService.tokensForUser(schedule.assignedNurseId)
-      : await this.tokensForAllActiveNurses();
+    await this.dispatcher.sendSyncSignal(await this.nurseTokensFor(schedule), this.toPayload(schedule), 'due');
 
-    await this.fcmService.sendDataMessage(tokens, {
-      type: 'medication_due',
-      scheduleId: schedule.id,
-      patientName: schedule.prescription.patient.fullName,
-      roomNo: schedule.prescription.patient.roomNo ?? '',
-      medicationName: schedule.prescription.medication.name,
-      dosage: schedule.prescription.dosage,
-      scheduledTime: schedule.scheduledTime.toISOString(),
-    });
-
-    // Kosullu guncelleme: FCM gonderimi suren saniyeler icinde hemsire dozu
+    // Kosullu guncelleme: gonderim suren saniyeler icinde hemsire dozu
     // erken uygulamis olabilir. Kosulsuz bir `update`, "administered"
     // durumunu "notified"a geri cevirir ve verilmis bir dozu tekrar bekleyen
     // olarak listeleyerek mukerrer uygulamaya yol acabilirdi.
@@ -60,15 +72,16 @@ export class ScheduleProcessor extends WorkerHost {
     });
     if (marked.count === 0) return;
 
-    const escalationMinutes = Number(this.config.get('ESCALATION_MINUTES') ?? 15);
-    await this.scheduleService.enqueueEscalation(scheduleId, escalationMinutes);
+    await this.scheduleService.enqueueEscalation(scheduleId, this.overdueMinutes());
   }
 
+  /**
+   * Kademe 3 — "Gecikme": doz hâlâ açıksa `missed` yapılır, başhemşirelere
+   * görünür kritik uyarı ve hemşire cihazlarına senkron sinyali gönderilir.
+   * `missed` nihai bir durum değildir; hemşire dozu geç de olsa kaydedebilir.
+   */
   private async handleEscalate(scheduleId: string) {
-    const schedule = await this.prisma.administrationSchedule.findUnique({
-      where: { id: scheduleId },
-      include: { prescription: { include: { patient: true, medication: true } } },
-    });
+    const schedule = await this.loadSchedule(scheduleId);
     // Bu sure icinde hemsire islem yaptiysa (administered/skipped) status zaten degismistir
     if (!schedule || schedule.status !== 'notified') return;
 
@@ -81,25 +94,50 @@ export class ScheduleProcessor extends WorkerHost {
     });
     if (escalated.count === 0) return;
 
-    const headNurseTokens = await this.tokensForRole('head_nurse');
-    await this.fcmService.sendDataMessage(headNurseTokens, {
-      type: 'medication_missed',
-      scheduleId: schedule.id,
-      patientName: schedule.prescription.patient.fullName,
-      roomNo: schedule.prescription.patient.roomNo ?? '',
-      medicationName: schedule.prescription.medication.name,
-      scheduledTime: schedule.scheduledTime.toISOString(),
-    });
+    const payload = this.toPayload(schedule);
+    await Promise.all([
+      this.dispatcher.sendOverdueEscalation(await this.tokensForRole('head_nurse'), payload),
+      this.dispatcher.sendSyncSignal(await this.nurseTokensFor(schedule), payload, 'overdue'),
+    ]);
 
-    this.logger.warn(`Ilac kacirildi: schedule=${scheduleId}, hasta=${schedule.prescription.patient.fullName}`);
+    this.logger.warn(`Ilac gecikti: schedule=${scheduleId}, hasta=${schedule.prescription.patient.fullName}`);
+  }
+
+  private loadSchedule(scheduleId: string) {
+    return this.prisma.administrationSchedule.findUnique({
+      where: { id: scheduleId },
+      include: { prescription: { include: { patient: true, medication: true } } },
+    });
+  }
+
+  private toPayload(schedule: ScheduleWithContext): DoseAlertPayload {
+    const { patient, medication, dosage } = schedule.prescription;
+    return {
+      scheduleId: schedule.id,
+      patientName: patient.fullName,
+      patientWristbandCode: patient.wristbandCode,
+      roomNo: patient.roomNo ?? '',
+      medicationName: medication.name,
+      dosage,
+      scheduledTime: schedule.scheduledTime,
+    };
+  }
+
+  /** Gecikme eşiği (dakika); `ESCALATION_MINUTES` ile hastane bazında ayarlanır. */
+  private overdueMinutes(): number {
+    const configured = Number(this.config.get('ESCALATION_MINUTES'));
+    return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_OVERDUE_MINUTES;
+  }
+
+  /** Atanmış hemşirenin cihazları; doz atanmamışsa (yayın) tüm hemşirelerin cihazları. */
+  private async nurseTokensFor(schedule: ScheduleWithContext): Promise<string[]> {
+    return schedule.assignedNurseId
+      ? this.devicesService.tokensForUser(schedule.assignedNurseId)
+      : this.tokensForRole('nurse');
   }
 
   private async tokensForRole(role: string): Promise<string[]> {
-    const devices = await this.prisma.device.findMany({ where: { user: { role: role as never } } });
+    const devices = await this.prisma.device.findMany({ where: { user: { role: role as never, isActive: true } } });
     return devices.map((d) => d.fcmToken);
-  }
-
-  private async tokensForAllActiveNurses(): Promise<string[]> {
-    return this.tokensForRole('nurse');
   }
 }

@@ -19,8 +19,20 @@
   --color-brand-800: #7d0a1e;
   --color-brand-900: #4d0613;
 
-  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
-  --shadow-card-hover: 0 8px 20px -4px rgb(15 23 42 / 0.10), 0 4px 8px -4px rgb(15 23 42 / 0.06);
+  /*
+   * Katmanlı gölge ölçeği: her gölge, çok yakın ve keskin bir "temas"
+   * katmanı ile geniş ve düşük opaklıklı bir "ortam" katmanından oluşur.
+   * Tek katmanlı koyu gölgeye göre yüzeyi zeminden daha doğal ayırır ve
+   * beyaz arayüzü kirletmez.
+   */
+  --shadow-card: 0 1px 1px 0 rgb(15 23 42 / 0.03), 0 2px 6px -2px rgb(15 23 42 / 0.06);
+  --shadow-card-hover: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 14px 28px -10px rgb(15 23 42 / 0.14);
+  --shadow-popover: 0 0 0 1px rgb(15 23 42 / 0.02), 0 4px 10px -4px rgb(15 23 42 / 0.08),
+    0 24px 48px -16px rgb(15 23 42 / 0.22);
+  --shadow-modal: 0 0 0 1px rgb(15 23 42 / 0.03), 0 32px 64px -24px rgb(15 23 42 / 0.35);
+
+  /* Tüm geçişlerin ortak zaman eğrisi: hızlı başlayıp yumuşakça oturur. */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root {
@@ -44,12 +56,13 @@ body {
   background: #fff;
   border-radius: 1rem;
   box-shadow: var(--shadow-card);
-  border: 1px solid #eef1f6;
-  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  border: 1px solid #e9edf3;
+  transition: box-shadow 200ms var(--ease-out-soft), border-color 200ms var(--ease-out-soft);
 }
 
 .card-interactive {
-  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+  transition: box-shadow 220ms var(--ease-out-soft), transform 220ms var(--ease-out-soft),
+    border-color 220ms var(--ease-out-soft);
 }
 .card-interactive:hover {
   box-shadow: var(--shadow-card-hover);
@@ -65,7 +78,7 @@ body {
   padding: 0.55rem 0.85rem;
   font-size: 0.875rem;
   color: #0f172a;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: border-color 160ms var(--ease-out-soft), box-shadow 160ms var(--ease-out-soft);
 }
 
 .input-field::placeholder {
@@ -105,8 +118,9 @@ body {
   font-weight: 600;
   font-size: 0.875rem;
   padding: 0.55rem 1.1rem;
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease,
-    transform 0.15s ease;
+  transition: background-color 160ms var(--ease-out-soft), border-color 160ms var(--ease-out-soft),
+    color 160ms var(--ease-out-soft), opacity 160ms var(--ease-out-soft), box-shadow 200ms var(--ease-out-soft),
+    transform 120ms var(--ease-out-soft);
   white-space: nowrap;
 }
 
@@ -217,7 +231,8 @@ body {
   font-size: 0.8125rem;
   font-weight: 600;
   white-space: nowrap;
-  transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.15s ease;
+  transition: background-color 160ms var(--ease-out-soft), color 160ms var(--ease-out-soft),
+    box-shadow 200ms var(--ease-out-soft), transform 120ms var(--ease-out-soft);
 }
 .action-btn:not(:disabled):active {
   transform: scale(0.97);
@@ -283,6 +298,111 @@ body {
 }
 .dose-row-flash {
   animation: dose-administered-flash 2.4s ease-out;
+}
+
+/*
+ * Açılır pencere, modal ve bildirim rozeti giriş animasyonları. Süreler
+ * kısa tutulur (150–220 ms): arayüz canlı hissettirir ama hemşireyi bir
+ * sonraki tıklamada bekletmez.
+ */
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.popover-enter {
+  transform-origin: top right;
+  animation: popover-in 180ms var(--ease-out-soft);
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-backdrop-enter {
+  animation: backdrop-in 160ms ease-out;
+}
+.modal-panel-enter {
+  box-shadow: var(--shadow-modal);
+  animation: modal-in 220ms var(--ease-out-soft);
+}
+
+@keyframes badge-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.badge-pop {
+  animation: badge-pop 260ms var(--ease-out-soft);
+}
+
+/*
+ * Sonner toast görünümü: panel kartlarıyla aynı beyaz zemin, ince kenarlık
+ * ve katmanlı gölge. Durum rengi sol kenardaki 3 px'lik vurgu çizgisiyle
+ * verilir; toast'ın tamamını renge boyamak, ekranın köşesinde gereksiz
+ * alarm hissi yaratırdı.
+ */
+.app-toast {
+  --toast-accent: #94a3b8;
+  font-family: inherit !important;
+  background: #fff !important;
+  border: 1px solid #e9edf3 !important;
+  border-radius: 0.875rem !important;
+  box-shadow: var(--shadow-popover) !important;
+  padding: 0.875rem 1rem 0.875rem 1.125rem !important;
+  overflow: hidden;
+}
+.app-toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--toast-accent);
+}
+.app-toast-title {
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+}
+.app-toast-description {
+  font-size: 0.8125rem !important;
+  color: #64748b !important;
+  margin-top: 0.125rem;
+}
+.app-toast-action {
+  background: var(--color-brand-600) !important;
+  color: #fff !important;
+  border-radius: 0.5rem !important;
+  font-weight: 600 !important;
+  padding: 0 0.7rem !important;
+  height: 1.75rem !important;
+  transition: background-color 160ms var(--ease-out-soft) !important;
+}
+.app-toast-action:hover {
+  background: var(--color-brand-700) !important;
+}
+.app-toast-close {
+  background: #fff !important;
+  border-color: #e2e8f0 !important;
+  color: #64748b !important;
+}
+.toast-success { --toast-accent: #10b981; }
+.toast-error { --toast-accent: #dc2626; }
+.toast-due { --toast-accent: #f59e0b; }
+.toast-overdue { --toast-accent: var(--color-brand-600); }
+
+@media (prefers-reduced-motion: reduce) {
+  .popover-enter,
+  .modal-backdrop-enter,
+  .modal-panel-enter,
+  .badge-pop {
+    animation: none;
+  }
 }
 
 /* Vertical clinical-course timeline on the patient detail page. */

@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './auth/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
-import { ToastViewport } from './components/ui/ToastViewport';
+import { AppToaster } from './components/ui/AppToaster';
 import { LoginPage } from './pages/LoginPage';
 import { PatientsPage } from './pages/PatientsPage';
 import { PatientDetailPage } from './pages/PatientDetailPage';
@@ -39,7 +39,7 @@ function App() {
               </Route>
             </Route>
           </Routes>
-          <ToastViewport />
+          <AppToaster />
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>

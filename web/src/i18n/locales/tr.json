@@ -243,5 +243,28 @@
     "discharged": "Hasta taburcu olmuştu",
     "unavailable": "İlaç stokta yoktu",
     "other": "Diğer"
+  },
+  "alerts": {
+    "bellLabel": "Bildirimler ({{count}} okunmamış)",
+    "title": "Bildirimler",
+    "subtitle": "{{count}} aktif ilaç uyarısı",
+    "emptyTitle": "Bekleyen uyarı yok",
+    "emptyText": "Yaklaşan ve geciken dozlar burada listelenir.",
+    "tier": {
+      "overdue": "Gecikmiş",
+      "due": "Uygulama Zamanı",
+      "prepare": "Yaklaşan (15 dk)"
+    },
+    "room": "Oda",
+    "bed": "Yatak",
+    "patientNotFound": "Hasta dosyası açılamadı.",
+    "summaryTitle": "{{count}} ilaç uygulama bekliyor",
+    "summaryOverdue": "{{count}} doz 30 dakikadan uzun süredir gecikmiş.",
+    "summaryDue": "Ayrıntılar için sağ üstteki bildirim ziline bakın.",
+    "dueTitle": "Uygulama Zamanı · {{medication}}",
+    "overdueTitle": "Gecikmiş İlaç · {{medication}}",
+    "toastBody": "{{patient}} · {{dosage}} · Planlanan {{time}}",
+    "openPatient": "Hastayı Aç",
+    "moreTitle": "+{{count}} uyarı daha"
   }
 }

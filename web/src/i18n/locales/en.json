@@ -243,5 +243,28 @@
     "discharged": "Patient had been discharged",
     "unavailable": "Medication was out of stock",
     "other": "Other"
+  },
+  "alerts": {
+    "bellLabel": "Notifications ({{count}} unread)",
+    "title": "Notifications",
+    "subtitle": "{{count}} active medication alerts",
+    "emptyTitle": "No pending alerts",
+    "emptyText": "Upcoming and overdue doses will appear here.",
+    "tier": {
+      "overdue": "Overdue",
+      "due": "Due now",
+      "prepare": "Upcoming (15 min)"
+    },
+    "room": "Room",
+    "bed": "Bed",
+    "patientNotFound": "Could not open the patient record.",
+    "summaryTitle": "{{count}} medications awaiting administration",
+    "summaryOverdue": "{{count}} doses are more than 30 minutes overdue.",
+    "summaryDue": "See the notification bell at the top right for details.",
+    "dueTitle": "Due now · {{medication}}",
+    "overdueTitle": "Overdue · {{medication}}",
+    "toastBody": "{{patient}} · {{dosage}} · Scheduled {{time}}",
+    "openPatient": "Open patient",
+    "moreTitle": "+{{count}} more alerts"
   }
 }

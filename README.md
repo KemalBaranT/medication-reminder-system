@@ -4,7 +4,8 @@ Uc parcadan olusur:
 
 - `backend/` - NestJS + PostgreSQL (Prisma) + Redis/BullMQ + Firebase Cloud Messaging
 - `web/` - React + Vite + TypeScript yonetim paneli (Doktor / Bashemsire / Sekreter)
-- `mobile/` - Flutter mobil uygulama (Hemsire)
+- `mobile-expo/` - React Native + Expo mobil uygulama (Hemşire) — güncel istemci
+- `mobile/` - Önceki Flutter mobil uygulama (geçiş tamamlanana kadar referans olarak tutuluyor)
 
 ## 1. Gereksinimler
 
@@ -58,19 +59,22 @@ npm run dev
 - Doktor: doktor@hastane.test / Password123!
 - Hemsire (raporlarda gorunur, mobilden giris yapar): hemsire@hastane.test / Password123!
 
-## 4. Mobil uygulamayi calistirma
+## 4. Mobil uygulamayı çalıştırma (React Native + Expo)
 
-`mobile/` klasorunde `lib/` ve `pubspec.yaml` hazir; ancak bu makinede Flutter SDK kurulu olmadigi icin `android/` ve `ios/` platform klasorleri henuz olusturulmadi. Flutter SDK'yi kurduktan sonra:
+Güncel mobil istemci `mobile-expo/` klasöründedir ve telefondaki **Expo Go**
+uygulamasıyla iOS ve Android'de doğrudan test edilebilir. Telefon ile
+bilgisayar aynı Wi-Fi ağında olmalıdır.
 
 ```bash
-cd mobile
-flutter create .   # eksik android/ios platform klasorlerini ekler, lib/ ve pubspec.yaml'a dokunmaz
-flutter pub get
-flutterfire configure   # Firebase projenizi baglar, firebase_options.dart olusturur (flutterfire_cli gerekir)
-flutter run --dart-define=API_URL=http://10.0.2.2:3000
+cd mobile-expo
+npm install
+npx expo start
 ```
 
-`firebase_options.dart` olustuktan sonra `lib/main.dart` icindeki `Firebase.initializeApp()` cagrisina `options: DefaultFirebaseOptions.currentPlatform` eklenmelidir (flutterfire configure bunu otomatik onerir).
+Terminalde çıkan QR kodu Expo Go (Android) veya Kamera uygulaması (iOS) ile
+okutun. Backend adresi otomatik bulunur; gerekirse `mobile-expo/.env`
+dosyasında `EXPO_PUBLIC_API_URL` ile verilebilir. Ayrıntılar için
+`mobile-expo/README.md` dosyasına bakın.
 
 ## 5. Mimari ve is akisi ozetleri
 

@@ -14,6 +14,7 @@ import { useHospitalSettings } from '../hooks/useHospitalSettings';
 import { useNow } from '../hooks/useNow';
 import { AdministerDoseDialog, NextDoseBanner, useTimingLabel } from '../components/DoseAdministration';
 import { classifyDoseTiming, isDoseActionable, isDoseOverdue } from '../lib/doseTiming';
+import { WORKLIST_QUERY_KEY } from '../lib/doseAlerts';
 
 interface Medication {
   id: string;
@@ -295,6 +296,7 @@ export function PatientDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['prescriptions', patientId] });
       queryClient.invalidateQueries({ queryKey: ['patients', patientId, 'timeline'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'summary'] });
+      queryClient.invalidateQueries({ queryKey: WORKLIST_QUERY_KEY });
       rowKeyCounter.current = 1;
       setRows([emptyRow('0')]);
       toast.success(t('prescriptions.createdSuccess'));
@@ -316,6 +318,7 @@ export function PatientDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['prescriptions', patientId] });
       queryClient.invalidateQueries({ queryKey: ['patients', patientId, 'timeline'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'summary'] });
+      queryClient.invalidateQueries({ queryKey: WORKLIST_QUERY_KEY });
       setCancelTarget(null);
       toast.success(t('prescriptions.toastCancelled'));
     },
@@ -326,6 +329,7 @@ export function PatientDetailPage() {
       (await api.patch(`/schedule/${editingSchedule!.id}`, { scheduledTime: new Date(scheduleTimeInput).toISOString() })).data,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prescriptions', patientId] });
+      queryClient.invalidateQueries({ queryKey: WORKLIST_QUERY_KEY });
       setEditingSchedule(null);
       toast.success(t('prescriptions.toastRescheduled'));
     },
@@ -369,6 +373,7 @@ export function PatientDetailPage() {
       );
       queryClient.invalidateQueries({ queryKey: ['patients', patientId, 'timeline'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'summary'] });
+      queryClient.invalidateQueries({ queryKey: WORKLIST_QUERY_KEY });
       setAdministerTarget(null);
       setFlashScheduleId(log.scheduleId);
       toast.success(

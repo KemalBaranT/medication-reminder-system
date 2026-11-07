@@ -8,7 +8,14 @@ interface ModalProps {
   maxWidthClass?: string;
 }
 
-/** Panel genelinde kullanilan ortak modal kabugu; arka plana tiklayarak veya Escape ile kapatilabilir. */
+/**
+ * Panel genelinde kullanılan ortak modal kabuğu; arka plana tıklayarak veya
+ * Escape ile kapatılabilir. Tarayıcının yerel `alert`/`confirm` pencereleri
+ * panelde hiç kullanılmaz: onay gerektiren her eylem bu kabuk üzerine
+ * kurulu `ConfirmDialog` ile, panelin tasarım diline uygun ve klavyeyle
+ * yönetilebilir biçimde sorulur. Açılışta arka plan yumuşakça kararır,
+ * pencere hafif bir ölçek ve kayma animasyonuyla yerine oturur.
+ */
 export function Modal({ title, onClose, children, maxWidthClass = 'max-w-lg' }: ModalProps) {
   const { t } = useTranslation();
   useEffect(() => {
@@ -20,9 +27,9 @@ export function Modal({ title, onClose, children, maxWidthClass = 'max-w-lg' }: 
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px] p-4" onClick={onClose}>
+    <div className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-[3px] p-4" onClick={onClose}>
       <div
-        className={`card w-full ${maxWidthClass} p-6 max-h-[90vh] overflow-y-auto`}
+        className={`card modal-panel-enter w-full ${maxWidthClass} p-6 max-h-[90vh] overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">

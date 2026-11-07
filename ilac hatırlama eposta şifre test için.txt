@@ -1,0 +1,31 @@
+ Rol     │         E-posta         │    Şifre     │
+├────────────┼─────────────────────────┼──────────────┤
+│ Hemşire    │ hemsire@hastane.test    │ Password123! │
+├────────────┼─────────────────────────┼──────────────┤
+│ Doktor     │ doktor@hastane.test     │ Password123! │
+├────────────┼─────────────────────────┼──────────────┤
+│ Başhemşire │ bashemsire@hastane.test │ Password123! │
+
+
+1. Kesintisiz ve Güvenli Altyapı (Backend)
+Otomatik Başlatma: Node.js ve PostgreSQL mimarisi Docker üzerinde çalışır; bilgisayar veya sunucu yeniden başlasa bile sistem kendi kendini otomatik olarak ayağa kaldırır.
+
+Sessiz İyileşme (Self-Healing): Uygulama bağlantı koptuğunda veya oturum (Token) süresi bittiğinde kullanıcıyı aniden dışarı atıp giriş döngüsüne sokmaz; arka planda yetkiyi sessizce yenileyip işlemi tamamlar.
+
+Tam Türkçe Desteği: Veritabanından arayüze kadar tüm katmanlar UTF-8 standartına geçirilmiştir; karakter hataları tamamen giderilmiştir.
+
+Kurumsal IT Denetimine Hazır Kodlar: Projedeki tüm amatör notlar silinmiş, yerlerine JSDoc/DartDoc standartlarında IT müdürlerinin onayından geçecek profesyonel Türkçe mimari yorumlar eklenmiştir.
+
+2. Akıllı ve Ergonomik Mobil Uygulama (Flutter)
+Kurumsal Medikal Tema: "Medical Point" konseptine uygun, koyu kırmızı ve beyaz renklerin hakim olduğu, modern ve prestijli bir tasarıma sahiptir.
+
+Kapsamlı QR Barkod Yönetimi: Ekranın sağ alt köşesindeki ana buton (FAB) ile tüm roller anında QR okutabilir. Kameranın yanı sıra "Galeriden QR Fotoğrafı Yükleme" özelliği sayesinde uzaktaki bir personelin gönderdiği barkod saniyeler içinde analiz edilebilir.
+
+Tam Tıklanabilir Kartlar: "Bugünün İlaçları" ekranındaki karmaşık küçük ikonlar (göz vb.) temizlenmiş, kartların tamamı tıklanabilir hale getirilerek personelin sahada hız kazanması sağlanmıştır.
+
+3. Yönetim Paneli ve Roller (React Web)
+Kompakt Dashboard Tasarımı: Web panelindeki boşluk israfı giderilmiş; hastanın QR kartı ve "İlaç Ata" formu yan yana getirilerek gerçek bir komuta merkezi görünümü elde edilmiştir.
+
+Dinamik Etkileşim: Web'deki tüm menüler ve butonlar, üzerine gelindiğinde (hover) renk değiştiren ve yumuşak gölgeler çıkaran modern efektlerle donatılmıştır.
+
+Kesintisiz RBAC (Rol Yetki Kontrolü): Admin, Doktor, Başhemşire ve Hemşire kendi sınırları içinde çalışır ancak hepsinin ortak özelliği olan QR ile hasta bulma mekanizması evrensel olarak aktiftir.
